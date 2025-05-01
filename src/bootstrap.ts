@@ -18,7 +18,7 @@ export async function bootstrap(version: string): Promise<void> {
   logger.info(colors.green(`booting openbmclapi ${version}`))
   const tokenManager = new TokenManager(config.clusterId, config.clusterSecret, version)
   await tokenManager.getToken()
-  const cluster = new Cluster(config.clusterSecret, version, tokenManager)
+  const cluster = new Cluster(/*config.clusterSecret,*/ version, tokenManager)
   await cluster.init()
   cluster.connect()
 

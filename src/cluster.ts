@@ -1,27 +1,27 @@
 import {decompress} from '@mongodb-js/zstd'
 import {ChildProcess, spawn} from 'child_process'
-import {MultiBar} from 'cli-progress'
+//import {MultiBar} from 'cli-progress'
 import colors from 'colors/safe.js'
 import delay from 'delay'
 import express, {type NextFunction, type Request, type Response} from 'express'
 import {readFileSync} from 'fs'
 import fse from 'fs-extra'
 import {mkdtemp, open, readFile, rm} from 'fs/promises'
-import got, {type Got, HTTPError, RequestError} from 'got'
+import got, {type Got/*, HTTPError, RequestError*/} from 'got'
 import {createServer, Server} from 'http'
 import {createSecureServer} from 'http2'
 import http2Express from 'http2-express-bridge'
 import {Agent as HttpsAgent} from 'https'
 import ipaddr from 'ipaddr.js'
-import stringifySafe from 'json-stringify-safe'
-import {template, toString} from 'lodash-es'
+//import stringifySafe from 'json-stringify-safe'
+import {template/*, toString*/} from 'lodash-es'
 import morgan from 'morgan'
 import ms from 'ms'
 import {constants} from 'node:http2'
 import {userInfo} from 'node:os'
 import {tmpdir} from 'os'
-import pMap from 'p-map'
-import pRetry from 'p-retry'
+//import pMap from 'p-map'
+//import pRetry from 'p-retry'
 import {dirname, join} from 'path'
 import prettyBytes from 'pretty-bytes'
 import {connect, Socket} from 'socket.io-client'
@@ -29,7 +29,7 @@ import {Tail} from 'tail'
 import {fileURLToPath} from 'url'
 import {config, type OpenbmclapiAgentConfiguration, OpenbmclapiAgentConfigurationSchema} from './config.js'
 import {FileListSchema} from './constants.js'
-import {validateFile} from './file.js'
+//import {validateFile} from './file.js'
 import {Keepalive} from './keepalive.js'
 import {logger} from './logger.js'
 import {beforeError} from './modules/got-hooks.js'
@@ -39,7 +39,8 @@ import {getStorage, type IStorage} from './storage/base.storage.js'
 import type {TokenManager} from './token.js'
 import type {IFileList} from './types.js'
 import {setupUpnp} from './upnp.js'
-import {checkSign, hashToFilename} from './util.js'
+import {/*checkSign,*/ hashToFilename} from './util.js'
+import { Cache } from './cache.js'
 
 interface ICounters {
   hits: number
@@ -68,13 +69,13 @@ export class Cluster {
   private readonly requestCache = new Map()
   private readonly tmpDir = join(tmpdir(), 'openbmclapi')
   private readonly keepalive = new Keepalive(ms('1m'), this)
-  private readonly downloadPromise = new Map<string, Promise<void>>()
+  /*private readonly downloadPromise = new Map<string, Promise<void>>()*/
   private socket?: Socket
 
   private server?: Server
 
   public constructor(
-    private readonly clusterSecret: string,
+    /*private readonly clusterSecret: string,*/
     private readonly version: string,
     private readonly tokenManager: TokenManager,
   ) {
@@ -180,7 +181,7 @@ export class Cluster {
       throw new Error('存储异常')
     }
     logger.info('正在检查缺失文件') //1
-    const missingFiles = await this.storage.getMissingFiles(fileList.files)
+    /*const missingFiles = await this.storage.getMissingFiles(fileList.files)
     if (missingFiles.length === 0) {
       return
     }
@@ -279,7 +280,7 @@ export class Cluster {
       throw new Error('同步失败')
     } else {
       logger.info('同步完成')
-    }*/ //1
+    } //1*/
   }
 
   public setupExpress(https: boolean): Server {
@@ -292,7 +293,7 @@ export class Cluster {
       app.use(morgan('combined'))
     }
     // eslint-disable-next-line @typescript-eslint/no-misused-promises
-    app.get('/download/:hash(\\w+)', async (req: Request, res: Response, next: NextFunction) => {
+    /*app.get('/download/:hash(\\w+)', async (req: Request, res: Response, next: NextFunction) => {
       try {
         const hash = req.params.hash.toLowerCase()
         const signValid = checkSign(hash, this.clusterSecret, req.query as NodeJS.Dict<string>)
@@ -326,23 +327,49 @@ export class Cluster {
         }
         return next(err)
       }
-    })
+    })*/
 
     app.get('/download/:hash(\\w+)', async (req: Request, res: Response, next: NextFunction) => {
-      try{
+      try {
         const hash = req.params.hash.toLowerCase()
+        const path = hashToFilename(hash)
+        const cache = new Cache()
         /*const signValid = checkSign(hash, this.clusterSecret, req.query as NodeJS.Dict<string>)
         if (!signValid) {
           return res.status(403).send('invalid sign')
         }*/
-const gs =  this.got.stream(`/openbmclapi/download/${hash}`,{
-  responseType: 'buffer',
-  searchParams: {noopen: 1},
-}).on('error',(e)=>{
-  res.sendStatus(500)
-}).on('close')
-      }catch(err){
 
+        const chunks: Uint8Array[] = []
+
+        res.set('x-bmclapi-hash', hash)
+        res.setHeader('Content-Type', 'application/octet-stream')
+        if(cache.getStatus(path) === 0){
+        const gs = this.got
+          .stream(`openbmclapi/download/${hash}`, {
+            responseType: 'buffer',
+            searchParams: {noopen: 1},
+          })
+          .on('data', (chunk) => {
+            chunks.push(chunk)
+          }).on('error',(err)=>{
+            res.sendStatus(500)
+            logger.error({err:err},"反向代理下载错误！")
+            gs.destroy()
+          })
+          .pipe(res)
+          .on('finish', async () => {
+            const content = Buffer.concat(chunks)
+            this.counters.bytes += content.length
+            this.counters.hits += 1
+            await cache.add(path,content)
+          })
+        }else{
+          const {bytes, hits} = await this.storage.express(path, req, res, next)
+          this.counters.bytes += bytes
+          this.counters.hits += hits
+        }
+      } catch (err) {
+       logger.error({err:err})
       }
     })
 

@@ -1,15 +1,13 @@
 import fs from 'fs';
-import fse from 'fs-extra'
 import { logger } from './logger.js';
-import {getStorage, type IStorage} from './storage/base.storage.js'
+import {getStorage} from './storage/base.storage.js'
 import { config } from './config.js';
 import crypto from "node:crypto"
-import path from 'node:path';
 const storage = getStorage(config)
 export class Cache {
     private ttl: number;
     private highHits: number;
-    private maxttl: number;
+    maxttl: number;
     constructor() {
         this.ttl = 60 * 60 * 12// 默认隔12小时刷新（秒）
         this.maxttl = 60 * 60 * 24 * 7 //下载量高的文件最大缓存7天（秒）
@@ -27,13 +25,14 @@ export class Cache {
     private settime(time:number) {
         setTimeout(() => {
            this.refresh() //刷新列表
+           this.settime(this.ttl)
           }, 1000*time);
     }
 
-    add(path: string, data:Buffer,) { //文件列表写有的，没有的不写
+    async add(path: string, data:Buffer,) { //文件列表写有的，没有的不写
         const cache = JSON.parse(fs.readFileSync("./cache.json").toString())
-        if (!storage.exists(path)) { //无则写入文件
-            storage.writeFile(path,data,{path:"",hash:crypto.createHash('sha1').update(data as Uint8Array).digest('hex'),size:data.length,mtime: Date.now(),})
+        if (!await storage.exists(path)) { //无则写入文件
+            await storage.writeFile(path,data,{path:"",hash:crypto.createHash('sha1').update(data as Uint8Array).digest('hex'),size:data.length,mtime: Date.now(),})
             //fse.outputFileSync("./cache/" + path, data)
         }
         if (!Object.keys(cache.data).includes(path)) {
@@ -41,7 +40,6 @@ export class Cache {
             fs.writeFileSync("./cache.json", JSON.stringify(cache))
             return 0;
         } else {
-            console.log(cache)
             cache.data[path].hits += 1
             fs.writeFileSync("./cache.json", JSON.stringify(cache))
             return 1;
