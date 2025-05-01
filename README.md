@@ -1,6 +1,8 @@
 # BMCLAPI
 BMCLAPI是@bangbang93开发的BMCL的一部分，用于解决国内线路对Forge和Minecraft官方使用的Amazon S3 速度缓慢的问题。BMCLAPI是对外开放的，所有需要Minecraft资源的启动器均可调用。
 
+# OpenBMCLAPI-RS
+这个项目主要是fork的openbmclapi，并且对反代进行支持（缓存1天+反向代理），命中率小的会被定时删掉。
 
 # OpenBMCLAPI
 这个项目的主要目的是辅助bmclapi分发文件
