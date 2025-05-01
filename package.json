@@ -6,7 +6,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "test": "true",
+    "test": "npm run dev",
     "build": "rimraf dist && tsc",
     "dev": "tsc-watch --onSuccess \"node --enable-source-maps dist/index.js\"",
     "lint": "eslint .",

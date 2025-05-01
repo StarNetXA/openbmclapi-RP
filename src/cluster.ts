@@ -179,7 +179,7 @@ export class Cluster {
     if (!storageReady) {
       throw new Error('存储异常')
     }
-    logger.info('正在检查缺失文件')
+    logger.info('正在检查缺失文件') //1
     const missingFiles = await this.storage.getMissingFiles(fileList.files)
     if (missingFiles.length === 0) {
       return
@@ -279,7 +279,7 @@ export class Cluster {
       throw new Error('同步失败')
     } else {
       logger.info('同步完成')
-    }
+    }*/ //1
   }
 
   public setupExpress(https: boolean): Server {
@@ -327,6 +327,25 @@ export class Cluster {
         return next(err)
       }
     })
+
+    app.get('/download/:hash(\\w+)', async (req: Request, res: Response, next: NextFunction) => {
+      try{
+        const hash = req.params.hash.toLowerCase()
+        /*const signValid = checkSign(hash, this.clusterSecret, req.query as NodeJS.Dict<string>)
+        if (!signValid) {
+          return res.status(403).send('invalid sign')
+        }*/
+const gs =  this.got.stream(`/openbmclapi/download/${hash}`,{
+  responseType: 'buffer',
+  searchParams: {noopen: 1},
+}).on('error',(e)=>{
+  res.sendStatus(500)
+}).on('close')
+      }catch(err){
+
+      }
+    })
+
     app.use('/measure', MeasureRouteFactory(config))
     let server: Server
     if (https) {

@@ -1,6 +1,10 @@
 import fs from 'fs';
 import fse from 'fs-extra'
 import { logger } from './logger.js';
+import {getStorage, type IStorage} from './storage/base.storage.js'
+import { config } from './config.js';
+import crypto from "node:crypto"
+const storage = getStorage(config)
 export class Cache {
     private ttl: number;
     private highHits: number;
@@ -25,11 +29,11 @@ export class Cache {
           }, 1000*time);
     }
 
-    add(path: string, data: string | Buffer) {
+    add(path: string, data:Buffer,) {
         const cache = JSON.parse(fs.readFileSync("./cache.json").toString())
-        if (!fs.existsSync("./cache/" + path)) { //无则写入文件
-            console.log("写入")
-            fse.outputFileSync("./cache/" + path, data)
+        if (!storage.exists(path)) { //无则写入文件
+            storage.writeFile(path,data,{path:"",hash:crypto.createHash('sha1').update(data as Uint8Array).digest('hex'),size:data.length,mtime: Date.now(),})
+            //fse.outputFileSync("./cache/" + path, data)
         }
         if (!Object.keys(cache.data).includes(path)) {
             cache.data[path] = { hits: 0, save_time: Date.now() }
@@ -50,7 +54,8 @@ export class Cache {
             if (data.hits < this.highHits) {
                 delete cache.data[Object.keys(cache.data)[i]]
             } else if (Date.now() - data.save_time > this.maxttl) {
-                fs.unlinkSync("./cache/" + cache.data[Object.keys(cache.data)[i]])
+                //fs.unlinkSync("./cache/" + cache.data[Object.keys(cache.data)[i]])
+                storage.gc()
                 delete cache.data[Object.keys(cache.data)[i]]
             }
         }
