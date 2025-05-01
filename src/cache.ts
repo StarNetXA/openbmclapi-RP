@@ -1,5 +1,6 @@
 import fs from 'fs';
 import fse from 'fs-extra'
+import { logger } from './logger.js';
 export class Cache {
     private ttl: number;
     private highHits: number;
@@ -54,6 +55,7 @@ export class Cache {
             }
         }
         fs.writeFileSync("./cache.json", JSON.stringify(cache))
+        logger.info("缓存刷新成功！")
     }
 
     getStatus(path: string) {
