@@ -4,6 +4,7 @@ import { logger } from './logger.js';
 import {getStorage, type IStorage} from './storage/base.storage.js'
 import { config } from './config.js';
 import crypto from "node:crypto"
+import path from 'node:path';
 const storage = getStorage(config)
 export class Cache {
     private ttl: number;
@@ -29,7 +30,7 @@ export class Cache {
           }, 1000*time);
     }
 
-    add(path: string, data:Buffer,) {
+    add(path: string, data:Buffer,) { //文件列表写有的，没有的不写
         const cache = JSON.parse(fs.readFileSync("./cache.json").toString())
         if (!storage.exists(path)) { //无则写入文件
             storage.writeFile(path,data,{path:"",hash:crypto.createHash('sha1').update(data as Uint8Array).digest('hex'),size:data.length,mtime: Date.now(),})
@@ -49,18 +50,17 @@ export class Cache {
 
     refresh() {
         const cache = JSON.parse(fs.readFileSync("./cache.json").toString())
+        const tmp = []
         for (let i = 0; i < Object.keys(cache.data).length; i++) {
             const data = cache.data[Object.keys(cache.data)[i]]
-            if (data.hits < this.highHits) {
-                delete cache.data[Object.keys(cache.data)[i]]
-            } else if (Date.now() - data.save_time > this.maxttl) {
-                //fs.unlinkSync("./cache/" + cache.data[Object.keys(cache.data)[i]])
-                storage.gc()
+            if(data.hits > this.highHits){
+                    tmp.push({path:Object.keys(cache.data)[i],hash:"0",size:0})
+            }else{
                 delete cache.data[Object.keys(cache.data)[i]]
             }
         }
         fs.writeFileSync("./cache.json", JSON.stringify(cache))
-        logger.info("缓存刷新成功！")
+        logger.info("缓存刷新成功！共移除"+storage.gc(tmp)+"个")
     }
 
     getStatus(path: string) {
