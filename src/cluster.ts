@@ -21,7 +21,7 @@ import {constants} from 'node:http2'
 import {userInfo} from 'node:os'
 import {tmpdir} from 'os'
 //import pMap from 'p-map'
-//import pRetry from 'p-retry'
+import pRetry from 'p-retry'
 import {dirname, join} from 'path'
 import prettyBytes from 'pretty-bytes'
 import {connect, Socket} from 'socket.io-client'
@@ -340,11 +340,13 @@ export class Cluster {
         }*/
 
         const chunks: Uint8Array[] = []
-
+        
         res.set('x-bmclapi-hash', hash)
         res.setHeader('Content-Type', 'application/octet-stream')
         if(cache.getStatus(path) === 0){
-        const gs = this.got
+          await pRetry(async ()=>{
+            await new Promise<void>(async (resolve,reject)=>{
+           const gs = this.got
           .stream(`openbmclapi/download/${hash}`, {
             responseType: 'buffer',
             searchParams: {noopen: 1},
@@ -352,8 +354,8 @@ export class Cluster {
           .on('data', (chunk) => {
             chunks.push(chunk)
           }).on('error',(err)=>{
-            res.sendStatus(500)
-            logger.error({err:err},"反向代理下载错误！")
+            //res.sendStatus(500)
+            reject(err)
             gs.destroy()
           })
           .pipe(res)
@@ -362,13 +364,17 @@ export class Cluster {
             this.counters.bytes += content.length
             this.counters.hits += 1
             await cache.add(path,content)
+            resolve()
           })
+        })
+        },{retries: 10})
         }else{
           const {bytes, hits} = await this.storage.express(path, req, res, next)
           this.counters.bytes += bytes
           this.counters.hits += hits
         }
       } catch (err) {
+       res.sendStatus(500)
        logger.error({err:err})
       }
     })
